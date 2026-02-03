@@ -1,6 +1,13 @@
 [build]
   functions = "functions"
 
+# กฎที่ 1: สำหรับ /api เฉยๆ
+[[redirects]]
+  from = "/api"
+  to = "/.netlify/functions/api"
+  status = 200
+
+# กฎที่ 2: สำหรับ /api/save-stock หรืออื่นๆ
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
