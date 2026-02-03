@@ -1,4 +1,4 @@
-// 1. ส่วน Import Library (ห้ามลบ!)
+// --- 1. ส่วน Import (สำคัญมาก ห้ามหาย!) ---
 const express = require('express');
 const serverless = require('serverless-http');
 const mongoose = require('mongoose');
@@ -6,28 +6,26 @@ const cors = require('cors');
 
 const app = express();
 
-// อนุญาตให้ Google Script ยิงเข้ามาได้
+// --- 2. Config Middleware ---
 app.use(cors());
 app.use(express.json());
 
-// 2. ส่วนเชื่อมต่อ Database แบบ Cached (สำหรับ Serverless)
+// --- 3. Database Connection (Cached) ---
 let conn = null;
 
 const connectDB = async () => {
   if (conn == null) {
-    console.log("Creating new DB connection...");
-    // เชื่อมต่อ MongoDB
+    console.log("🔄 Creating new DB connection...");
     conn = mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 5000
     }).then(() => mongoose);
-    
     await conn;
   }
-  console.log("Using cached DB connection");
+  console.log("✅ Using cached DB connection");
   return conn;
 };
 
-// 3. สร้าง Schema
+// --- 4. Schema Definition ---
 const TransactionSchema = new mongoose.Schema({
   officer: String,
   remark: String,
@@ -41,36 +39,30 @@ const TransactionSchema = new mongoose.Schema({
   source: String
 });
 
-// ประกาศตัวแปร Model รอไว้
 let TransactionModel;
 
-// 4. สร้าง Router
+// --- 5. Routing ---
 const router = express.Router();
 
-// Route: เช็คว่า API ทำงานไหม
+// Route: Check Status
 router.get('/', (req, res) => {
-  res.json({ 
-    status: "ok", 
-    message: "iStudio Stock API is running!",
-    debug_path: req.path 
-  });
+  res.json({ status: "ok", message: "API is running!", time: new Date() });
 });
 
-// Route: บันทึกข้อมูล
+// Route: Save Data
 router.post('/save-stock', async (req, res) => {
   try {
-    // เชื่อมต่อ DB
     await connectDB();
     
-    // Initialize Model
     if (!TransactionModel) {
         TransactionModel = mongoose.model('StockTransaction', TransactionSchema);
     } else {
         TransactionModel = mongoose.model('StockTransaction');
     }
 
-    // รับข้อมูลและบันทึก
     const data = req.body;
+    console.log("📥 Receiving data:", JSON.stringify(data)); // Log ดูข้อมูลที่เข้า
+
     const newTransaction = new TransactionModel({
       officer: data.officer,
       remark: data.remark,
@@ -79,20 +71,19 @@ router.post('/save-stock', async (req, res) => {
     });
 
     const savedDoc = await newTransaction.save();
+    console.log("✅ Saved ID:", savedDoc._id);
     
-    console.log("Saved Doc ID:", savedDoc._id);
     res.status(200).json({ success: true, id: savedDoc._id });
 
   } catch (error) {
-    console.error("Error:", error);
+    console.error("❌ Error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// 5. จัดการ Route ให้รองรับทั้ง Netlify และ Express (แก้ปัญหา Cannot GET)
+// --- 6. Export Handler (แก้ path ให้ครอบคลุม) ---
 app.use('/.netlify/functions/api', router);
 app.use('/api', router);
 app.use('/', router);
 
-// Export Handler
 module.exports.handler = serverless(app);
